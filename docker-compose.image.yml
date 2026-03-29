@@ -1,8 +1,6 @@
 services:
   timemachine:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: timemachine
     container_name: timemachine
     environment:
       - TIMEMACHINE_PASSWORD=YourPasswordHere
