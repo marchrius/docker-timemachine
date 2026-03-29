@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  timemachine:
+    build:
+      context: .
+      dockerfile: Dockerfile.modern
+    container_name: timemachine
+    environment:
+      - TIMEMACHINE_PASSWORD=YourPasswordHere
+    volumes:
+      - ./backup:/backup
+    ports:
+      - "548:548"
+    network_mode: host
+    restart: unless-stopped

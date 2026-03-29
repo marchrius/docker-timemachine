@@ -1,19 +1,44 @@
-# arve0/timemachine
-Netatalk running in docker for time machine backups.
+# docker-timemachine (Alpine, supervisord, env password)
 
+Netatalk in Docker for Time Machine backups, now based on Alpine Linux, with process management via supervisord and user password set through environment variable.
+
+## Usage Example
+
+```sh
+docker build -f Dockerfile.modern -t docker-timemachine-alpine .
+
+docker run -e "TIMEMACHINE_PASSWORD=YourPassword" \
+  -v /host/mnt/backup:/backup \
+  -p 548:548 \
+  --net=host \
+  -d docker-timemachine-alpine
 ```
-docker pull arve0/timemachine
-docker run -e "PASSWORD=asdf" -v /host/mnt/backup:/backup -p 548:548 --net=host -d arve0/timemachine
-```
 
-Connect with timemachine:asdf. If environment variable `PASSWORD` is not set, *timemachine* is the default password.
+- **TIMEMACHINE_PASSWORD**: required, sets the password for the `timemachine` user.
+- **PASSWORD**: supported for backward compatibility, prefer TIMEMACHINE_PASSWORD.
+- If neither variable is set, the container will exit with an error.
 
-# notes on bonjour/avahi/zeroconf
-[Network discovery](http://en.wikipedia.org/wiki/Bonjour_(software)) only works if afp daemon is on same network as client. Therefore `--net=host` is required if you would like the disk to show in Finder. If you don't need this, you can remove `--net=host` and connect in Finder with `cmd+k` -> `afp://hostname/`
+Connect from macOS as user `timemachine` with the chosen password.
 
-Note that `--net=host` doesn't work with ubuntu trusty 14.04: https://github.com/docker/docker/issues/5899
+## Notes on Bonjour/Avahi/ZeroConf
 
-# ideas from
-- https://bitbucket.org/lonix/plex/src
-- https://github.com/bySabi/dockerfiles/tree/master/nas
+Network discovery (Bonjour/Avahi) only works if the AFP daemon is on the same network as the client. Therefore, `--net=host` is required if you want the disk to appear in Finder. Alternatively, you can connect manually from Finder with `cmd+k` → `afp://hostname/`.
+
+## What's new compared to the original version
+
+- **Alpine base**: lighter and more up-to-date image.
+- **supervisord**: robust process management (dbus, avahi, netatalk).
+- **User password via env**: only through environment variable.
+- **Security**: no default password.
+- **Compatibility**: tested on recent macOS versions.
+
+## References and inspiration
+
+- https://github.com/arve0/timemachine (original)
 - https://github.com/aequitas/timemachine
+- https://github.com/bySabi/dockerfiles/tree/master/nas
+- https://bitbucket.org/lonix/plex/src
+
+---
+
+For advanced configuration, see `afp.conf` and the Netatalk documentation.

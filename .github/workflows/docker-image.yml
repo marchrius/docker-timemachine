@@ -1,0 +1,79 @@
+name: Build and Push Docker image
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from VERSION file
+        id: get_version
+        run: |
+          VERSION=$(cat VERSION | tr -d '\n')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get commit messages
+        id: get_commits
+        run: |
+          if git rev-parse ${{ github.event.before }} >/dev/null 2>&1; then
+            COMMITS=$(git log --format=%B ${{ github.event.before }}..${{ github.sha }})
+          else
+            COMMITS=$(git log -n 20 --format=%B)
+          fi
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Bump version (conventional commit rules)
+        id: bump_version
+        run: |
+          VERSION=$(cat VERSION | tr -d '\n')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          COMMITS="${{ steps.get_commits.outputs.commits }}"
+          if echo "$COMMITS" | grep -Eiq 'BREAKING CHANGE|^feat!|^fix!'; then
+            MAJOR=$((MAJOR+1))
+            MINOR=0
+            PATCH=0
+          elif echo "$COMMITS" | grep -Eiq '^feat'; then
+            MINOR=$((MINOR+1))
+            PATCH=0
+          elif echo "$COMMITS" | grep -Eiq '^fix'; then
+            PATCH=$((PATCH+1))
+          fi
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "$NEW_VERSION" > VERSION
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Commit and push new version
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Bump version to ${{ steps.bump_version.outputs.version }}
+          file_pattern: VERSION
+          branch: ${{ github.ref_name }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.modern
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/docker-timemachine:latest
+            ghcr.io/${{ github.repository_owner }}/docker-timemachine:${{ steps.bump_version.outputs.version }}

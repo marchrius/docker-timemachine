@@ -1,40 +1,34 @@
-# use 12.04 precise (https://github.com/docker/docker/issues/5899)
-FROM phusion/baseimage:0.9.9
-MAINTAINER Arve Seljebu arve.seljebu@gmail.com
+# Modern Alpine-based Dockerfile for Time Machine
+FROM alpine:latest
 
-# no ssh
-RUN rm -rf /etc/service/sshd /etc/my_init.d/00_regen_ssh_host_keys.sh
+LABEL org.opencontainers.image.authors="Arve Seljebu arve.seljebu@gmail.com"
 
-# environment
-ENV DEBIAN_FRONTEND noninteractive
-ENV HOME /root
+# Install dependencies
+RUN apk update && apk add --no-cache \
+    netatalk \
+    avahi \
+    dbus \
+    supervisor \
+    && rm -rf /var/cache/apk/*
 
-# use baseimage init system
-CMD ["/sbin/my_init"]
+# Add user
+RUN adduser -h /backup -D timemachine
 
-# install netatalk 3 from ppa
-RUN \
-    echo "deb http://ppa.launchpad.net/ali-asad-lotia/netatalk-stable/ubuntu precise main" > /etc/apt/sources.list.d/netatalk3.list && \
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys AC857259 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends netatalk avahi-daemon
-
-# clean up
-RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-# add user
-RUN useradd --home /backup -m timemachine
-RUN echo timemachine:timemachine | chpasswd 
-
-# time machine volume
+# Time machine volume
 VOLUME /backup
 
-# port
+# Port
 EXPOSE 548
 
-# afp config
-ADD afp.conf /etc/netatalk/afp.conf
+# AFP config
+COPY afp.conf /etc/netatalk/afp.conf
 
-# add init and services
-ADD init/ /etc/my_init.d/
-ADD services/ /etc/service/
+# Supervisord config
+COPY supervisord.conf /etc/supervisord.conf
+
+# Entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Start supervisord as PID 1
+ENTRYPOINT ["/entrypoint.sh"]
