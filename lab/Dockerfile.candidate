@@ -1,0 +1,55 @@
+# Experimental ARM64 lab candidate. No production configuration is provided.
+FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS source
+RUN apk add --no-cache curl gnupg
+WORKDIR /source
+RUN curl --fail --show-error --location --proto '=https' \
+      -o samba-4.23.13.tar.gz https://download.samba.org/pub/samba/stable/samba-4.23.13.tar.gz && \
+    curl --fail --show-error --location --proto '=https' \
+      -o samba-4.23.13.tar.asc https://download.samba.org/pub/samba/stable/samba-4.23.13.tar.asc && \
+    curl --fail --show-error --location --proto '=https' \
+      -o samba-pubkey.asc https://download.samba.org/pub/samba/samba-pubkey.asc && \
+    gpg --batch --import samba-pubkey.asc && \
+    gzip -dc samba-4.23.13.tar.gz > samba-4.23.13.tar && \
+    gpg --batch --status-fd=1 --verify samba-4.23.13.tar.asc samba-4.23.13.tar > signature.status && \
+    grep -q '^\[GNUPG:\] VALIDSIG 81F5E2832BD2545A1897B713AA99442FB680B620 ' signature.status && \
+    sha512sum samba-4.23.13.tar.gz | tee source.sha512 && \
+    rm samba-4.23.13.tar
+RUN echo '3c86afef17fd0f776356014b689e9ef9caf469f1dde8a446e34d4fb4b275e7a6286d1a6a762d5804174a91833f57806c757ca45b072d04307aa9cc3560492716  samba-4.23.13.tar.gz' | sha512sum -c -
+
+FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS builder
+RUN apk add --no-cache alpine-sdk
+RUN abuild-keygen -a -n && cp /root/.abuild/*.rsa.pub /etc/apk/keys/ && apk update
+COPY lab/vendor/alpine-samba /work/main/samba
+COPY lab/patches /adaptations
+COPY --from=source /source /source
+COPY lab/build-packages.sh /build-packages.sh
+ARG BUILD_JOBS=2
+ENV PACKAGER="Time Machine isolated laboratory" \
+    JOBS=${BUILD_JOBS} \
+    MAKEFLAGS=-j${BUILD_JOBS}
+WORKDIR /work/main/samba
+RUN sh /build-packages.sh
+
+FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS runtime
+# The private package signing key never leaves the builder stage.
+COPY --from=builder /root/packages/main /tmp/samba-packages
+COPY --from=builder /etc/apk/keys/ /etc/apk/keys/
+COPY --from=source /source/source.sha512 /source/signature.status /source/samba-4.23.13.tar.asc /usr/share/timemachine-lab/
+RUN apk add --no-cache --repository /tmp/samba-packages \
+      attr avahi avahi-compat-libdns_sd avahi-tools dbus s6 \
+      samba-server=4.23.13-r0 samba-common-tools=4.23.13-r0 samba-client=4.23.13-r0 && \
+    apk info -v | sort > /usr/share/timemachine-lab/runtime-packages.txt && \
+    mkdir -p /var/run/dbus /etc/avahi/services /etc/samba && \
+    touch /etc/samba/lmhosts && \
+    rm -f /etc/samba/smb.conf /etc/avahi/services/*.service && \
+    rm -rf /tmp/samba-packages && \
+    test "$(smbd --version)" = 'Version 4.23.13' && \
+    test -f /usr/lib/samba/vfs/fruit.so && \
+    test -f /usr/lib/samba/vfs/streams_xattr.so
+COPY s6 /etc/s6
+COPY entrypoint.sh /entrypoint.sh
+COPY lab/init.sh /lab/init.sh
+COPY lab/smoke.sh /lab/smoke.sh
+COPY lab/verify-runtime.sh /lab/verify-runtime.sh
+ENTRYPOINT ["/bin/sh", "/lab/init.sh"]
+CMD ["s6-svscan", "/etc/s6"]

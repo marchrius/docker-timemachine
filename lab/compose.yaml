@@ -1,16 +1,17 @@
 name: timemachine-samba-lab
 services:
-  reference:
+  reference: &lab-runtime
     image: timemachine-samba-lab:reference-4.23.8
     build:
       context: ..
       dockerfile: lab/Dockerfile.baseline
     hostname: tm-samba-lab
-    environment:
+    environment: &lab-environment
       TIMEMACHINE_ISOLATED_LAB: "yes"
       EXTERNAL_CONF: /run/lab/users
       SET_PERMISSIONS: "false"
       HIDE_SHARES: "yes"
+      EXPECTED_SAMBA_VERSION: "4.23.8"
     networks:
       - isolated
     volumes:
@@ -22,8 +23,22 @@ services:
       nofile:
         soft: 65536
         hard: 65536
+  candidate:
+    <<: *lab-runtime
+    profiles: [candidate]
+    image: timemachine-samba-lab:candidate-4.23.13
+    build:
+      context: ..
+      dockerfile: lab/Dockerfile.candidate
+    hostname: tm-samba-new
+    environment:
+      <<: *lab-environment
+      EXPECTED_SAMBA_VERSION: "4.23.13"
+    volumes:
+      - candidate-synthetic-data:/opt
 networks:
   isolated:
     internal: true
 volumes:
   synthetic-data:
+  candidate-synthetic-data:

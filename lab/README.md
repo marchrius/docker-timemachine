@@ -30,8 +30,9 @@ Non usare questo Compose per produzione e non collegarlo alla LAN.
   troppo restrittivo sulle maiuscole del nome Bonjour. EntryPoint upstream invariato.
 - Container di laboratorio fermato dopo i test; immagine e volume conservati.
 - Nessun comando eseguito sul Raspberry Pi, nessun accesso agli sparsebundle.
-- Non ancora eseguiti: build 4.23.13, prova riavvio/idempotenza, test macOS
-  degli stream Apple e Time Machine, continuità identità e rollback offline.
+- Per la successiva qualificazione della candidata vedere la sezione dedicata
+  più sotto e `BUILD.md`. Test macOS/Time Machine e continuità identità reale
+  restano da eseguire.
 
 ## Mac — un comando alla volta
 
@@ -64,11 +65,49 @@ docker --context colima compose -f lab/compose.yaml stop reference
 
 I test verificano accessi SMB reali, guest negato, isolamento bidirezionale,
 scrittura/lettura/rename/delete di file sintetici, UID/GID, xattr Linux,
-configurazione e processi, registrazione Avahi nella rete isolata.
+stream SMB alternativi memorizzati come xattr, configurazione e processi,
+registrazione Avahi nella rete isolata.
 Non verificano ancora gli stream Apple tramite client macOS, Bonjour sulla LAN,
 una sessione Time Machine, riconnessioni/durable handles o continuità degli sparsebundle.
 
-## Candidato aggiornato — da costruire e qualificare
+## Candidato aggiornato — esito del laboratorio, 25 ottobre 2026
+
+Build ARM64 di Samba 4.23.13 completata su Alpine 3.24.3 stabile, mantenendo
+entrypoint upstream e ordine VFS `fruit streams_xattr`. Sorgente ufficiale
+verificato con firma e fingerprint, SHA-512 fissato; ricetta Alpine fissata
+a commit e adattamento musl separato. Istruzioni e limiti in `BUILD.md`.
+
+Immagine locale: `timemachine-samba-lab:candidate-4.23.13`.
+Image ID qualificato:
+`sha256:beabfb4ff058a7d754e6fb2eb27f16b6f5592af510bc515c521dbbc2b094a7f6`.
+
+Esiti verificati:
+
+- Runtime ARM64 pulito: suite/librerie Samba tutte 4.23.13-r0, dipendenze
+  di smbd risolte, moduli fruit/streams_xattr e supporto ACL/xattr/Avahi.
+  Percorsi config/cache/stato/private corrispondono a quelli dell'handoff.
+  Compilatori e directory delle chiavi private assenti dal runtime.
+- Stesso `smoke.sh` superato su baseline e candidata: guest negato,
+  isolamento bidirezionale utenti, UID/GID, round trip di file casuali da
+  1 MiB e stream SMB alternativi, xattr, rename/delete, servizi e Bonjour.
+- Confronto `testparm -sv`: differiscono solo `netbios name` (identità
+  sintetiche distinte) e `server string` (versione Samba). Nessun'altra
+  differenza nei parametri effettivi del laboratorio.
+- Riavvio della sola candidata: SID sintetico invariato e test completo
+  nuovamente superato. Questo non prova persistenza del SID alla ricreazione
+  del container o trasferibilità dei database reali.
+- Ispezione Docker candidata: `Ports={}`, rete interna già verificata,
+  unico mount named volume `candidate-synthetic-data` su `/opt`.
+- Entrambi i laboratori fermati al termine; immagini e volumi conservati.
+- `AutoBackup=1` riconfermato sul Mac al termine. Non prova l'esito dell'ultimo backup.
+- Nessun comando eseguito sul Raspberry Pi, nessuna migrazione o accesso ai backup.
+
+La prima build ha completato compilazione e APK ma fallito la generazione
+dell'indice per una chiave pubblica locale non installata: corretto installandola
+nello stage precedente alla compilazione. La build corretta ha completato
+abuild in 16m34s; log integrale salvato sul Mac dal wrapper di build.
+Accorciato l'hostname sintetico candidato a `tm-samba-new` per rispettare
+il limite NetBIOS. Non sono state modificate impostazioni del server reale.
 
 Release 4.23.13 confermata nelle fonti ufficiali:
 https://www.samba.org/samba/history/samba-4.23.13.html
@@ -81,13 +120,11 @@ https://github.com/alpinelinux/aports/blob/3.24-stable/main/samba/APKBUILD
 Upstream container:
 https://github.com/mbentley/docker-timemachine
 
-Percorso preferito da valutare: ricostruire i pacchetti Alpine della suite
-4.23.13 su base 3.24, usando ricetta e patch Alpine revisionate e fissate a commit.
-Prima di costruire: verificare firma sorgente Samba, bloccare digest base,
-hash sorgenti/patch, dipendenze e opzioni di compilazione. Installare librerie,
-tool e moduli VFS della stessa build; non copiare soltanto smbd e non usare Edge.
-Documentare l'onere di manutenzione degli aggiornamenti di sicurezza.
-La fattibilità e compatibilità ABI non sono ancora dimostrate.
+Percorso realizzato: pacchetti Alpine della suite 4.23.13 su base 3.24,
+con librerie, tool e moduli VFS della stessa build. Nessun repository Edge.
+Le dipendenze Alpine non sono ancora archiviate e bloccate individualmente:
+non è una build riproducibile bit per bit. La compatibilità complessiva con
+lo stato e i backup reali resta da dimostrare, come descritto nei gate sotto.
 
 ## Raspberry Pi — prossime verifiche solo in lettura
 

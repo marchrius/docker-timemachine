@@ -1,0 +1,15 @@
+**
+!entrypoint.sh
+!s6/
+!s6/**
+!lab/
+!lab/Dockerfile.candidate
+!lab/build-packages.sh
+!lab/init.sh
+!lab/smoke.sh
+!lab/verify-runtime.sh
+!lab/vendor/
+!lab/vendor/alpine-samba/
+!lab/vendor/alpine-samba/**
+!lab/patches/
+!lab/patches/**
