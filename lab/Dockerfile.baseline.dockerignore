@@ -1,0 +1,8 @@
+**
+!entrypoint.sh
+!s6/
+!s6/**
+!lab/
+!lab/Dockerfile.baseline
+!lab/init.sh
+!lab/smoke.sh

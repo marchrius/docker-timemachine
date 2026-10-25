@@ -1,0 +1,16 @@
+# Reference image only. Not the upgraded production replacement.
+FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+ARG SAMBA_PACKAGE_VERSION=4.23.8-r0
+RUN apk add --no-cache attr avahi avahi-compat-libdns_sd avahi-tools dbus s6 \
+      samba-server=${SAMBA_PACKAGE_VERSION} \
+      samba-common-tools=${SAMBA_PACKAGE_VERSION} \
+      samba-client=${SAMBA_PACKAGE_VERSION} && \
+    mkdir -p /var/run/dbus /etc/avahi/services /etc/samba && \
+    touch /etc/samba/lmhosts && \
+    rm -f /etc/samba/smb.conf /etc/avahi/services/*.service
+COPY s6 /etc/s6
+COPY entrypoint.sh /entrypoint.sh
+COPY lab/init.sh /lab/init.sh
+COPY lab/smoke.sh /lab/smoke.sh
+ENTRYPOINT ["/bin/sh", "/lab/init.sh"]
+CMD ["s6-svscan", "/etc/s6"]
