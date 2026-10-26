@@ -1,4 +1,4 @@
-# Experimental ARM64 lab candidate. No production configuration is provided.
+# Pinned ARM64 build with separate production and synthetic laboratory targets.
 FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS source
 RUN apk add --no-cache curl gnupg
 WORKDIR /source
@@ -30,7 +30,7 @@ ENV PACKAGER="Time Machine isolated laboratory" \
 WORKDIR /work/main/samba
 RUN sh /build-packages.sh
 
-FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS runtime
+FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS runtime-base
 # The private package signing key never leaves the builder stage.
 COPY --from=builder /root/packages/main /tmp/samba-packages
 COPY --from=builder /etc/apk/keys/ /etc/apk/keys/
@@ -48,6 +48,14 @@ RUN apk add --no-cache --repository /tmp/samba-packages \
     test -f /usr/lib/samba/vfs/streams_xattr.so
 COPY s6 /etc/s6
 COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["s6-svscan", "/etc/s6"]
+
+# No fixture initializer, users, passwords or lab scripts in this target.
+FROM runtime-base AS production
+
+# Keep the default target compatible with the isolated lab compose files.
+FROM runtime-base AS runtime
 COPY lab/init.sh /lab/init.sh
 COPY lab/smoke.sh /lab/smoke.sh
 COPY lab/verify-runtime.sh /lab/verify-runtime.sh
