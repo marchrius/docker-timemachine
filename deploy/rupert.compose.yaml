@@ -1,8 +1,8 @@
-# Portainer stack: timemachine. Keep pruning disabled for the stopped core rollback.
+# Portainer stack: timemachine, on Raspberry Pi rupert.
 services:
-  samba:
-    image: timemachine-samba:4.23.13-r0
-    pull_policy: never
+  core:
+    image: ghcr.io/marchrius/timemachine:4.23.13
+    pull_policy: missing
     hostname: Time-Capsule
     restart: unless-stopped
     stop_grace_period: 60s
@@ -51,8 +51,15 @@ services:
       retries: 3
 networks:
   lan:
-    external: true
     name: timemachine_lan
+    driver: macvlan
+    driver_opts:
+      parent: end0
+    ipam:
+      config:
+        - subnet: 192.168.3.0/24
+          ip_range: 192.168.3.54/32
+          gateway: 192.168.3.254
 volumes:
   samba-state:
     external: true

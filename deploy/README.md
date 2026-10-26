@@ -1,21 +1,22 @@
 # Raspberry Pi production deployment
 
 As of **2026-10-26**, Portainer stack `timemachine` (ID 29, environment 3)
-uses [rupert.compose.yaml](rupert.compose.yaml), service `samba`, container
-`timemachine-samba-1`. Portainer version **42** of the stack file was compared
-byte for byte with this file after deployment. Prune and image repull were off.
+uses [rupert.compose.yaml](rupert.compose.yaml), service `core`, container
+`timemachine-core-1`, and the published GHCR image. This supersedes the initial
+local-image deployment using service `samba` and Portainer file version 42.
 
 The owner explicitly waived client verification on Anna's Mac. There is no
 remaining requirement to perform that test.
 
 ## Image and persistent identity
 
-- Samba **4.23.13**, ARM64, local image `timemachine-samba:4.23.13-r0`.
-- Qualified image ID:
+- Samba **4.23.13**, ARM64, image `ghcr.io/marchrius/timemachine:4.23.13`.
+- Published manifest digest:
+  `sha256:1e12757108c7e4cbf79c7f3a3dce4ed4f0c7ca9e3d1aa844dcfa7e57fd176f79`.
+- The previously qualified local image `timemachine-samba:4.23.13-r0` is retained:
   `sha256:8a8fffb9c9ff5721562ab220fad54720ad1a460efebd1bba4d481028d55fe1e4`.
-- `pull_policy: never` prevents silently replacing it with a registry image.
-  The image is local to rupert; recovering another Docker host requires loading
-  the archived image or building the pinned production target first.
+- `pull_policy: missing` permits pulling the pinned version if it is not cached.
+  GHCR publication does not automatically change the running Pi version.
 - Samba state is in external Docker volume `timemachine_samba_state`, mounted
   at `/var/lib/samba` with `nocopy`. It must be retained during replacements.
 - Data remains `/mnt/timemachine:/opt`; original user configs are mounted
@@ -34,11 +35,11 @@ file contents, UID/GID, modes and link targets before the production server
 started. The helper was removed; the external volume was retained and reused
 by the production container. No backup data file was deleted or renamed.
 
-After production boot: container healthy, expected persistent mount verified,
+After the initial production boot: container healthy, expected persistent mount verified,
 original SID/accounts and Unix UID/GID matched. Authentication/share listings
 passed for both server accounts. Portainer also visibly reports `healthy`.
 
-The **Mac** completed its production verification backup at **10:34:30 local**,
+The **Mac** completed its initial production verification backup at **10:34:30 local**,
 logging `Successfully completed backing up 1.53 GB` to
 `2026-10-26-103414.backup`, on the existing APFS volume
 `B6685763-598A-4D0D-97FB-D6F5A6DFD08C` and existing destination ID
@@ -46,8 +47,44 @@ logging `Successfully completed backing up 1.53 GB` to
 enabled afterwards (`AutoBackup=1`). The earlier qualified-image trial also
 passed a one-file restore; see [PI_TRIAL.md](../lab/PI_TRIAL.md).
 
-Production container ID:
+Initial local-image container ID (historical, no longer the running server):
 `2512cca66f94d60ee97b7af6b87ce2bcb6153bcc4ebe81017834429284ae350f`.
+
+## LAN configuration and deployment-error recovery
+
+The Compose file explicitly creates a macvlan network named `timemachine_lan`
+on `end0`, subnet `192.168.3.0/24`, gateway `192.168.3.254`, with an allocation
+range restricted to **`192.168.3.54/32`**. The service retains that static IP and
+MAC `02:42:c0:a8:03:36`.
+
+Do not replace this definition with an empty `networks: {lan: {}}`: Docker
+creates a bridge with an unrelated automatic subnet, rejecting the static LAN
+address with `no configured subnet contains IP address 192.168.3.54`.
+
+The restricted range is also required to coexist with rupert's other macvlan
+network, `ps5_lan`, which reserves `192.168.3.201/32` on the same physical LAN.
+Requesting the entire LAN pool again caused `Pool overlaps with other one on
+this address space`. The `.54/32` configuration was tested with an empty
+temporary network before production deployment. The other service/network was
+not modified.
+
+During the 2026-10-26 repair, only the incorrect **empty** Time Machine bridge
+was removed. Original failed Compose files (v45/v46) and a coherent, read-only
+offline archive of the existing Samba volume were saved privately under
+`/home/matteo/timemachine-trial-20261026`. Database presence was checked before
+startup. The service was recovered with Compose over SSH; Portainer's stored
+file was aligned, then a successful Portainer update completed the repair.
+Portainer's resulting v46 file matched the repository Compose byte for byte.
+Final checks confirmed `healthy`, the expected macvlan/pool/IP/MAC, and the
+original SID/accounts using the existing state volume. After final Portainer
+reconciliation, the Mac completed a backup at **18:57:07 local**, logging
+`Successfully completed backing up 783.2 MB` to `2026-10-26-185552.backup` on
+the original APFS backup volume. Automatic backups remained enabled.
+
+If a conflicting `timemachine_lan` already exists, inspect its driver, IPAM and
+attached containers first. A network's subnet/driver cannot be repaired by
+changing an image tag. Remove only an unused incorrect network; preserve any
+network serving other containers. Keep the external Samba state volume.
 
 ## Build / recover the image
 
@@ -73,10 +110,10 @@ docker image load -i /home/matteo/timemachine-trial-20261026/candidate.tar
 docker image tag timemachine-samba:trial-4.23.13 timemachine-samba:4.23.13-r0
 ```
 
-Verify the resulting image ID above before deploying. Do not enable image
-repull. The external network `timemachine_lan` must already exist with rupert's
-original macvlan configuration. The state volume must already be initialized;
-an external volume prevents Compose from silently substituting a new one.
+Verify the local qualified image ID above before selecting that image as a
+fallback. For the normal GHCR deployment, Compose creates the dedicated
+macvlan itself. The external state volume must already be initialized;
+declaring it external prevents Compose from silently substituting a new one.
 
 ## State backups and restore
 
@@ -94,7 +131,7 @@ normally detach the identified disk image and SMB share. Check `smbstatus` on
 On **Pi**, stop the production server normally:
 
 ```sh
-docker stop --timeout 60 timemachine-samba-1
+docker stop --timeout 60 timemachine-core-1
 ```
 
 Set restrictive archive permissions in that same Pi shell:
@@ -107,13 +144,13 @@ Choose a new timestamped filename, then archive the stopped container's mounted
 state, preserving archive ownership and modes:
 
 ```sh
-docker cp -a timemachine-samba-1:/var/lib/samba - > /home/matteo/timemachine-trial-20261026/samba-state-YYYYMMDD-HHMMSS.tar
+docker cp -a timemachine-core-1:/var/lib/samba - > /home/matteo/timemachine-trial-20261026/samba-state-YYYYMMDD-HHMMSS.tar
 ```
 
 Check the command succeeded before restarting the server:
 
 ```sh
-docker start timemachine-samba-1
+docker start timemachine-core-1
 ```
 
 Keep private state/config/image archives in a separately protected backup as
@@ -129,40 +166,24 @@ cache/lease directories, or import upgraded state into an older Samba version.
 
 ## Rollback
 
-Both `timemachine-core-1` (original 4.23.8) and `timemachine-samba-trial`
-(qualified 4.23.13) are retained stopped, restart `no`, disconnected from LAN.
-Do not prune them or start either alongside production.
+The name `timemachine-core-1` now belongs to production, not the original 4.23.8
+container. The original container and the initial `timemachine-samba-1` no
+longer existed when the network-repair preflight ran. Do not apply the old
+container-name rollback procedure from the historical trial document.
 
-For original-server rollback, first quiesce the Mac as above. On **Pi**, execute
-each command separately:
+The stopped, disconnected `timemachine-samba-trial` and private image/state
+archives remain available. Never start a second server on the same identity
+or backup data concurrently.
 
-```sh
-docker update --restart=no timemachine-samba-1
-```
+For an image fallback **within the currently deployed Samba 4.23.13 version**,
+quiesce the Mac, archive the current state offline, select the retained
+`timemachine-samba:4.23.13-r0` image in the same Compose service, and redeploy
+with the existing dedicated network and state volume. Verify identity,
+authentication and backup access afterwards. Keep Portainer's file aligned
+with the selected image.
 
-```sh
-docker stop --timeout 60 timemachine-samba-1
-```
-
-```sh
-docker network disconnect timemachine_lan timemachine-samba-1
-```
-
-```sh
-python3 /home/matteo/timemachine-trial-20261026/pi-trial.py restore-network
-```
-
-```sh
-docker start timemachine-core-1
-```
-
-After verifying identity and client access, restore its original restart policy:
-
-```sh
-docker update --restart=always timemachine-core-1
-```
-
-This uses the original untouched container databases; the backup data remains
-shared and is not rewound. The current Portainer definition still describes
-production: reconcile it with the chosen rollback before any later deployment
-or stack start. Keep pruning off while retaining `core` as an orphan rollback.
+Returning to the original Samba 4.23.8 requires rebuilding its configuration
+from `original-image.tar` and restoring the matching **pre-upgrade** `state.tar`
+into a separate new state volume. Do not mount the upgraded production state
+into an older server. Neither image fallback nor server rollback rewinds the
+shared backup data filesystem.

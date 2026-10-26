@@ -124,6 +124,8 @@ servers use the same data filesystem. Do not import upgraded databases back
 into the original. Keep the stopped trial and artifacts for diagnosis.
 
 The permanent follow-up updated the Portainer stack, introduced persistent
-Samba state and documented its backup/restore. Both rollback containers remain
-stopped and disconnected. Use the current deployment document for rollback
-from production, rather than the historical trial-only sequence above.
+Samba state and documented its backup/restore. A later redeployment reused
+`timemachine-core-1` for the GHCR production image; the original container no
+longer exists, while its private image/state archives and the stopped trial
+remain. Use the current deployment document for rollback from production,
+rather than the historical trial-only sequence above.
