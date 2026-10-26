@@ -71,6 +71,16 @@ class Releases(unittest.TestCase):
             return {'owner': {'type': 'User'}} if path.startswith('/repos/') else []
         self.assertFalse(is_published('owner/repo', '4.23.13', 'fake', get))
 
+    def test_package_name_independent_of_repository(self):
+        seen = []
+        def get(path, token):
+            seen.append(path)
+            return {'owner': {'type': 'User'}} if path.startswith('/repos/') else []
+        self.assertFalse(is_published('marchrius/docker-timemachine', '4.23.13',
+                                     'fake', get, package='timemachine'))
+        self.assertEqual(seen, ['/repos/marchrius/docker-timemachine',
+                                '/users/marchrius/packages/container/timemachine/versions?per_page=100&page=1'])
+
 
 @unittest.skipUnless(shutil.which('sha512sum') and shutil.which('sed'), 'GNU/Alpine tools required')
 class Packaging(unittest.TestCase):

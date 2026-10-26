@@ -50,12 +50,15 @@ def github_json(path, token):
         return json.load(response)
 
 
-def is_published(repository, version, token, get_json=github_json):
+def is_published(repository, version, token, get_json=github_json, package=None):
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
         raise ValueError('Invalid repository')
     if not token:
         raise ValueError('GH_TOKEN is required to check package versions')
-    owner, package = repository.lower().split('/')
+    owner, repository_name = repository.lower().split('/')
+    package = package or repository_name
+    if not re.fullmatch(r'[a-z0-9_.-]+', package):
+        raise ValueError('Invalid container package name')
     repo = get_json(f'/repos/{repository}', token)
     kind = 'orgs' if repo['owner']['type'] == 'Organization' else 'users'
     page = 1
@@ -96,12 +99,14 @@ def main():
     if args.discover_only:
         print(version)
         return
-    published = is_published(args.repository, version, os.environ.get('GH_TOKEN'))
+    published = is_published(args.repository, version, os.environ.get('GH_TOKEN'),
+                             package=config['package'])
     # Push/PR checks also build existing releases to validate code changes;
     # daily/manual checks compile only an unpublished patch.
     build = not published or os.environ.get('GITHUB_EVENT_NAME') in {'push', 'pull_request'}
     values = {
-        'version': version, 'image': f'ghcr.io/{args.repository.lower()}',
+        'version': version,
+        'image': f'ghcr.io/{args.repository.lower().split("/")[0]}/{config["package"]}',
         'build': str(build).lower(), 'publish': str(not published).lower(),
         'sha512': source_checksum(version) if build else '',
     }

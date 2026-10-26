@@ -1,4 +1,5 @@
 {
   "series": "4.23",
-  "minimum_version": "4.23.13"
+  "minimum_version": "4.23.13",
+  "package": "timemachine"
 }

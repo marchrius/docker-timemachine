@@ -18,7 +18,7 @@ For an unpublished patch, the workflow:
    absence of builder keys/compiler. Runs the production entrypoint and SMB
    smoke tests with isolated synthetic users/data.
 5. Only after those checks, publishes the tested image to
-   **`ghcr.io/marchrius/docker-timemachine:4.23.Y`** (`linux/arm64`).
+   **`ghcr.io/marchrius/timemachine:4.23.Y`** (`linux/arm64`).
 
 Published version tags are not overwritten. If the exact tag already exists,
 daily and manual checks skip compilation and publication. Code-changing pushes
