@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """Exercise the production default entrypoint using private synthetic fixtures."""
 import json
+import argparse
 from pathlib import Path
 import secrets
 import subprocess
 import tempfile
 import uuid
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = "timemachine-samba:trial-4.23.13"
+DOCKER = ["docker", "--context", "colima"]
 
 
 def docker(*args, **kwargs):
     result = subprocess.run(
-        ["docker", "--context", "colima", *args],
+        [*DOCKER, *args],
         text=True, capture_output=True, **kwargs,
     )
     if result.returncode:
@@ -22,6 +25,14 @@ def docker(*args, **kwargs):
 
 
 def main():
+    global IMAGE, DOCKER
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--context', default='colima')
+    parser.add_argument('--image', default=IMAGE)
+    parser.add_argument('--version', default='4.23.13')
+    args = parser.parse_args()
+    IMAGE = args.image
+    DOCKER = ['docker', '--context', args.context]
     info = json.loads(docker("image", "inspect", IMAGE))[0]
     assert info["Config"]["Entrypoint"] == ["/entrypoint.sh"]
     assert info["Architecture"] == "arm64"
@@ -29,7 +40,8 @@ def main():
     docker("run", "--rm", "--network", "none", "--entrypoint", "sh", image,
            "-ec", "test ! -e /lab; test ! -d /users; test ! -e /root/.abuild; test ! -e /root/.gnupg")
     name = "tm-production-smoke-" + uuid.uuid4().hex[:12]
-    fixture = Path(tempfile.mkdtemp(prefix="timemachine-production-smoke-", dir="/private/tmp"))
+    fixture = Path(tempfile.mkdtemp(prefix="timemachine-production-smoke-",
+                                  dir='/private/tmp' if sys.platform == 'darwin' else None))
     users = fixture / "users"
     users.mkdir(mode=0o700)
     for user, uid, limit in (("matteo", 1001, "1300G"), ("anna", 1002, "500G")):
@@ -56,7 +68,7 @@ def main():
                "--tmpfs", "/run/samba", "--tmpfs", "/run/dbus",
                "-e", "EXTERNAL_CONF=/users", "-e", "SET_PERMISSIONS=false",
                "-e", "HIDE_SHARES=yes", "-e", "TIMEMACHINE_ISOLATED_LAB=yes",
-               "-e", "EXPECTED_SAMBA_VERSION=4.23.13", image)
+               "-e", f"EXPECTED_SAMBA_VERSION={args.version}", image)
         docker("cp", str(users), f"{name}:/users")
         docker("cp", str(fixture), f"{name}:/run/lab")
         docker("start", name)
@@ -65,7 +77,7 @@ def main():
         print(f"PASS: production default entrypoint; image={image}; fixtures={fixture}")
     finally:
         for args in (("rm", "-f", name), ("volume", "rm", name), ("network", "rm", name)):
-            subprocess.run(["docker", "--context", "colima", *args],
+            subprocess.run([*DOCKER, *args],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 

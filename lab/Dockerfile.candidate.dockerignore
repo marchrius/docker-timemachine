@@ -5,6 +5,7 @@
 !lab/
 !lab/Dockerfile.candidate
 !lab/build-packages.sh
+!lab/prepare-packages.sh
 !lab/init.sh
 !lab/smoke.sh
 !lab/verify-runtime.sh

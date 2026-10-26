@@ -1,0 +1,110 @@
+name: Samba patch images
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+  push:
+    branches: [master, timemachine-samba-lab]
+    paths:
+      - '.github/workflows/samba-patches.yml'
+      - 'ci/**'
+      - 'lab/Dockerfile.candidate*'
+      - 'lab/*packages.sh'
+      - 'lab/patches/**'
+      - 'lab/vendor/**'
+      - 'lab/production-smoke.py'
+      - 'lab/smoke.sh'
+      - 'lab/verify-runtime.sh'
+      - 'entrypoint.sh'
+      - 's6/**'
+  pull_request:
+    paths:
+      - '.github/workflows/samba-patches.yml'
+      - 'ci/**'
+      - 'lab/**'
+      - 'entrypoint.sh'
+      - 's6/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: samba-patch-images
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      image: ${{ steps.release.outputs.image }}
+      sha512: ${{ steps.release.outputs.sha512 }}
+      build: ${{ steps.release.outputs.build }}
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Test release selection and packaging
+        run: python3 -m unittest discover -s ci -p 'test_*.py' -v
+      - name: Find latest unpublished patch
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 ci/samba_release.py
+
+  build:
+    needs: discover
+    if: >-
+      needs.discover.outputs.build == 'true' &&
+      (github.event_name == 'pull_request' ||
+       github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SAMBA_VERSION: ${{ needs.discover.outputs.version }}
+      SAMBA_SHA512: ${{ needs.discover.outputs.sha512 }}
+      IMAGE: ${{ needs.discover.outputs.image }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build production image on native ARM64
+        run: |
+          docker build --target production -f lab/Dockerfile.candidate \
+            --build-arg "SAMBA_VERSION=$SAMBA_VERSION" \
+            --build-arg "SAMBA_SHA512=$SAMBA_SHA512" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "org.opencontainers.image.version=$SAMBA_VERSION" \
+            -t timemachine-samba:ci .
+      - name: Verify version, libraries and clean runtime
+        run: |
+          docker run --rm -i --network none --entrypoint sh \
+            -e "EXPECTED_SAMBA_VERSION=$SAMBA_VERSION" \
+            timemachine-samba:ci < lab/verify-runtime.sh
+      - name: Test production entrypoint and SMB with isolated synthetic data
+        run: |
+          python3 lab/production-smoke.py --context default \
+            --image timemachine-samba:ci --version "$SAMBA_VERSION"
+      - name: Publish new patch to GitHub Container Registry
+        if: >-
+          needs.discover.outputs.publish == 'true' &&
+          github.event_name != 'pull_request' &&
+          github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+          docker tag timemachine-samba:ci "$IMAGE:$SAMBA_VERSION"
+          docker push "$IMAGE:$SAMBA_VERSION"
+          printf 'Published %s:%s (linux/arm64)\n' "$IMAGE" "$SAMBA_VERSION" >> "$GITHUB_STEP_SUMMARY"

@@ -1,17 +1,20 @@
 #!/bin/sh
 set -eu
 test "$(uname -m)" = aarch64
-test "$(smbd --version)" = 'Version 4.23.13'
+expected=${EXPECTED_SAMBA_VERSION:-4.23.13}
+test "$(smbd --version)" = "Version $expected"
 smbd --version
 for package in samba-server samba-common-tools samba-client; do
   apk info -e "$package" >/dev/null
 done
 packages=$(apk info -v | grep -E '^(samba-|libauth-samba-|libwbclient-|libsmbclient-|ldb-)')
 printf '%s\n' "$packages"
-if printf '%s\n' "$packages" | grep -v -- '-4.23.13-r0$'; then
-  echo 'FAIL: mixed Samba package versions' >&2
-  exit 1
-fi
+printf '%s\n' "$packages" | while IFS= read -r package; do
+  case "$package" in
+    *-"$expected"-r0) ;;
+    *) echo 'FAIL: mixed Samba package versions' >&2; exit 1 ;;
+  esac
+done
 test -f /usr/lib/samba/vfs/fruit.so
 test -f /usr/lib/samba/vfs/streams_xattr.so
 ldd /usr/sbin/smbd
