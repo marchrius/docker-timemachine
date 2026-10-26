@@ -126,6 +126,13 @@ Le dipendenze Alpine non sono ancora archiviate e bloccate individualmente:
 non è una build riproducibile bit per bit. La compatibilità complessiva con
 lo stato e i backup reali resta da dimostrare, come descritto nei gate sotto.
 
+## Mac — verifica di stato e rollback
+
+Aggiornamento del 26 ottobre: test offline di stato e rollback sintetico
+**4.23.8 → 4.23.13 → 4.23.8 superato**. Procedura, esiti e limiti in
+[STATE_TRANSFER.md](STATE_TRANSFER.md). Nello stesso documento è registrata
+la prova riuscita di recupero di un file dal backup reale del server 4.23.8.
+
 ## Raspberry Pi — prossime verifiche solo in lettura
 
 Ricontrollare per nome `timemachine-core-1`, non per tag/ancestor:
@@ -157,7 +164,10 @@ La compatibilità perfetta resta un obiettivo da verificare, non una garanzia.
    storico accessibile, pianificazione attiva e log. Arrestare il solo candidato
    e ripristinare il vecchio container se le verifiche falliscono.
 
-Immagine storica per rollback da riconfermare: `7404a92fd48c`, non il tag mobile.
+Verifica live del 25 ottobre: l'immagine storica `7404a92fd48c` e il vecchio
+container dell'handoff non risultano più presenti. Il rollback di produzione
+deve essere ricostruito sul container attualmente attivo, sulla sua immagine
+per ID e sulle sue copie coerenti di configurazione/stato.
 Una copia fatta prima dell'upgrade non va sovrascritta dai database aggiornati.
 I nomi share/IP da soli non provano l'identità Time Machine.
 `fruit:time machine max size` è reporting, non una quota rigida.

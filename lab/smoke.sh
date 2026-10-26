@@ -14,13 +14,16 @@ test "$(id -g matteo)" = 1000
 # Account names and IDs only; never hashes.
 pdbedit -L
 attempt=0
-until smb 'Time Machine di Matteo' matteo 'ls' >/dev/null 2>&1; do
+ready() {
+  for process in smbd nmbd dbus-daemon avahi-daemon; do
+    pidof "$process" >/dev/null || return 1
+  done
+  smb 'Time Machine di Matteo' matteo 'ls' >/dev/null 2>&1
+}
+until ready; do
   attempt=$((attempt + 1))
-  [ "$attempt" -lt 20 ] || fail 'SMB readiness/authentication'
+  [ "$attempt" -lt 20 ] || fail 'service readiness/SMB authentication'
   sleep 1
-done
-for process in smbd nmbd dbus-daemon avahi-daemon; do
-  pidof "$process" >/dev/null || fail "process $process"
 done
 smb 'Time Machine di Anna' anna 'ls' >/dev/null
 if smbclient '//127.0.0.1/Time Machine di Matteo' -N -c ls >/dev/null 2>&1; then
@@ -56,8 +59,16 @@ grep -q '_device-info._tcp' /etc/avahi/services/smbd.service
 grep -q '_adisk._tcp' /etc/avahi/services/smbd.service
 grep -q 'adVN=Time Machine di Anna,' /etc/avahi/services/smbd.service
 grep -q 'adVN=Time Machine di Matteo,' /etc/avahi/services/smbd.service
-avahi-browse --resolve --terminate --parsable _adisk._tcp > /run/lab/avahi-browse
-grep -qiF "$(hostname)" /run/lab/avahi-browse
-grep -q 'adVN=Time Machine di Anna,' /run/lab/avahi-browse
-grep -q 'adVN=Time Machine di Matteo,' /run/lab/avahi-browse
+attempt=0
+while :; do
+  avahi-browse --resolve --terminate --parsable _adisk._tcp > /run/lab/avahi-browse
+  if grep -qiF "$(hostname)" /run/lab/avahi-browse &&
+     grep -q 'adVN=Time Machine di Anna,' /run/lab/avahi-browse &&
+     grep -q 'adVN=Time Machine di Matteo,' /run/lab/avahi-browse; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  [ "$attempt" -lt 10 ] || fail 'Bonjour registration did not become ready'
+  sleep 1
+done
 echo 'PASS: isolated synthetic laboratory (not proof of existing backup compatibility)'
