@@ -128,6 +128,13 @@ lo stato e i backup reali resta da dimostrare, come descritto nei gate sotto.
 
 ## Mac — verifica di stato e rollback
 
+Il 26 ottobre è stata superata anche la prova del **client SMB nativo macOS**
+contro la candidata 4.23.13: dati, xattr, FinderInfo, resource fork, rinomina,
+nuova sessione, guest negato e isolamento utenti. Rete, procedura, esiti e
+limiti in [NATIVE_CLIENT.md](NATIVE_CLIENT.md). La destinazione Time Machine
+del Mac non è stata modificata; non è ancora una prova Time Machine completa
+sulla candidata.
+
 Aggiornamento del 26 ottobre: test offline di stato e rollback sintetico
 **4.23.8 → 4.23.13 → 4.23.8 superato**. Procedura, esiti e limiti in
 [STATE_TRANSFER.md](STATE_TRANSFER.md). Nello stesso documento è registrata

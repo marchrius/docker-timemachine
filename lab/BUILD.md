@@ -91,7 +91,9 @@ Confronto testparm completo, verifica runtime, accessi/stream SMB e riavvio
 sintetico sono stati eseguiti con successo; esiti dettagliati in `README.md`.
 Anche importazione offline dello stato e rollback sintetico sono stati
 verificati: vedere `STATE_TRANSFER.md` per ambito e limiti.
-Restano prove del client macOS, stream Apple/AAPL, backup Time Machine nuovo
+Client macOS nativo, metadati Apple e nuova sessione SMB sono stati verificati
+su dati sintetici: vedere `NATIVE_CLIENT.md`.
+Restano backup Time Machine nuovo
 su destinazione sintetica e test di riconnessione/durable handles.
 Questi controlli non dimostrano ancora la continuità degli sparsebundle reali.
 

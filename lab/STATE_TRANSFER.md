@@ -108,8 +108,9 @@ con il client Time Machine macOS.
 
 ## Gate ancora aperti
 
-- Client macOS contro candidata isolata: comportamento Apple/AAPL, metadati,
-  riconnessioni e un backup Time Machine di prova concordato.
+- Client macOS contro candidata isolata: la prova di dati, metadati Apple e
+  nuova sessione SMB è ora superata (vedi `NATIVE_CLIENT.md`). Restano guasti
+  con handle aperti e un backup Time Machine di prova concordato.
 - Riconferma e conservazione dell'identità Bonjour e dello stato del server
   attualmente attivo, che è diverso dal container descritto originariamente
   nell'handoff. La vecchia immagine e il vecchio container non sono più presenti.

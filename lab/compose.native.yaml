@@ -1,0 +1,39 @@
+services:
+  candidate:
+    image: timemachine-samba-lab:candidate-4.23.13
+    pull_policy: never
+    hostname: tm-native-lab
+    environment:
+      TIMEMACHINE_ISOLATED_LAB: "yes"
+      EXTERNAL_CONF: /run/lab/users
+      SET_PERMISSIONS: "false"
+      HIDE_SHARES: "yes"
+      EXPECTED_SAMBA_VERSION: "4.23.13"
+    volumes:
+      - native-synthetic-data:/opt
+      - ./smoke.sh:/lab/smoke.sh:ro
+    tmpfs: [/run]
+    networks: [isolated]
+    restart: "no"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+  proxy:
+    image: timemachine-samba-lab:loopback-proxy
+    pull_policy: never
+    depends_on: [candidate]
+    command: ["TCP-LISTEN:1445,fork,reuseaddr", "TCP:candidate:445"]
+    ports:
+      - target: 1445
+        host_ip: 127.0.0.1
+        protocol: tcp
+    networks: [client, isolated]
+    restart: "no"
+networks:
+  isolated:
+    internal: true
+  client:
+    driver: bridge
+volumes:
+  native-synthetic-data:
