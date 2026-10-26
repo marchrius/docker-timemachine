@@ -2,7 +2,8 @@
 
 The owner authorized testing on the real service and accepts possible loss of
 both Matteo's and Anna's backups. No existing backup was deleted or renamed.
-This is a live trial, not yet a permanent Portainer stack deployment.
+This records the qualified trial. The subsequent permanent Portainer deployment
+is documented in [deploy/README.md](../deploy/README.md).
 
 ## Image
 
@@ -22,7 +23,7 @@ transferred with `docker cp`; no Colima sharing configuration is changed.
 
 ## Actual deployment
 
-On **Raspberry Pi / rupert.local**:
+At the time of the trial, on **Raspberry Pi / rupert.local**:
 
 - Original container: `timemachine-core-1`, ID `34f6fe971983…`, retained stopped,
   restart policy `no`, disconnected from `timemachine_lan`.
@@ -69,7 +70,8 @@ Both byte comparisons passed: restored file against the snapshot source and
 against the current repository file. `diskutil unmount` then successfully
 unmounted only the temporary snapshot. The restored temporary file is retained.
 This proves recovery of that file from the new backup, not every file in the
-archive or a full-system restore. Anna's Mac has not been tested.
+archive or a full-system restore. The owner explicitly waived verification from
+Anna's Mac; it is not a remaining task.
 
 During the backup macOS logged missing checkpoint markers and transient local
 file/xattr lookups; these did not prevent the explicit successful result. Do not
@@ -121,6 +123,7 @@ rollback restores the server, not an earlier copy of the backup data: both
 servers use the same data filesystem. Do not import upgraded databases back
 into the original. Keep the stopped trial and artifacts for diagnosis.
 
-Before making this permanent, update the Portainer stack, define persistent
-Samba state for future replacements, and document backup/restore of that state.
-Do not redeploy the old Portainer stack while the trial owns its network identity.
+The permanent follow-up updated the Portainer stack, introduced persistent
+Samba state and documented its backup/restore. Both rollback containers remain
+stopped and disconnected. Use the current deployment document for rollback
+from production, rather than the historical trial-only sequence above.
